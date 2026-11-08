@@ -29,8 +29,16 @@ from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star
 
 PLUGIN_NAME = "astrbot_plugin_netease_music"
-PLUGIN_VERSION = "v1.0.0"
+PLUGIN_VERSION = "v1.0.2"
 API_BASE = "https://music.163.com"
+API_HOSTS = (
+    API_BASE,
+    "https://interface.music.163.com",
+    "https://interface3.music.163.com",
+)
+
+# 公共 Meting 兜底（可用配置关闭）；仅在直链接口全部失败时尝试
+PUBLIC_METING_API = "https://meting.jinghuashang.cn/api?server=netease&type=url&id={id}"
 
 QUALITY_LEVELS = {
     "standard": ("standard", "mp3", "128k"),
@@ -246,8 +254,14 @@ class NeteaseClient:
             await self._session.close()
         self._session = None
 
-    async def _request(self, path: str, params: dict, method: str = "GET") -> dict:
-        url = f"{API_BASE}{path}"
+    async def _request(
+        self,
+        path: str,
+        params: dict,
+        method: str = "GET",
+        base: str = API_BASE,
+    ) -> dict:
+        url = f"{base}{path}"
         try:
             session = await self._get_session()
             if method == "POST":
@@ -352,14 +366,48 @@ class NeteaseClient:
         if level not in QUALITY_LEVELS:
             level = "exhigh"
         api_level, encode_type, _ = QUALITY_LEVELS[level]
-        data = await self._request(
-            "/api/song/enhance/player/url/v1",
-            {
-                "ids": f"[{song_id}]",
-                "level": api_level,
-                "encodeType": encode_type,
-            },
-        )
+        params = {
+            "ids": f"[{song_id}]",
+            "level": api_level,
+            "encodeType": encode_type,
+        }
+        for base in API_HOSTS:
+            try:
+                data = await self._request(
+                    "/api/song/enhance/player/url/v1", params, base=base
+                )
+            except NeteaseError as exc:
+                logger.debug("取链失败 %s %s: %s", base, level, exc)
+                continue
+            info = self._parse_url_item(data, level)
+            if info:
+                return info
+        return None
+
+    async def _song_url_legacy(self, song_id: str, level: str) -> dict | None:
+        """老版 br 接口，部分 IP 上比 v1 接口更宽松。"""
+        br_map = {
+            "lossless": 999000,
+            "exhigh": 320000,
+            "higher": 192000,
+            "standard": 128000,
+        }
+        params = {"ids": f"[{song_id}]", "br": br_map.get(level, 320000)}
+        for base in API_HOSTS:
+            try:
+                data = await self._request(
+                    "/api/song/enhance/player/url", params, base=base
+                )
+            except NeteaseError as exc:
+                logger.debug("旧版取链失败 %s: %s", base, exc)
+                continue
+            info = self._parse_url_item(data, level)
+            if info:
+                return info
+        return None
+
+    @staticmethod
+    def _parse_url_item(data: dict, level: str) -> dict | None:
         items = data.get("data") or []
         if not isinstance(items, list) or not items or not isinstance(items[0], dict):
             return None
@@ -367,12 +415,11 @@ class NeteaseClient:
         url = str(item.get("url") or "").strip()
         if not url:
             return None
-        trial = item.get("freeTrialInfo")
         return {
             "url": url,
             "quality": QUALITY_LABELS.get(level, level),
             "size": _as_int(item.get("size"), 0),
-            "trial": bool(trial),
+            "trial": bool(item.get("freeTrialInfo")),
             "level": level,
         }
 
@@ -410,9 +457,24 @@ class NeteaseClient:
         }
 
     async def _meting_url(self, song: Song) -> dict | None:
-        template = str(_cfg(self.config, "meting_api", "") or "").strip()
-        if not template:
-            return None
+        templates: list[str] = []
+        configured = str(_cfg(self.config, "meting_api", "") or "").strip()
+        if configured:
+            templates.append(configured)
+        if _cfg(self.config, "enable_public_meting", True):
+            templates.append(PUBLIC_METING_API)
+
+        seen: set[str] = set()
+        for template in templates:
+            if template in seen:
+                continue
+            seen.add(template)
+            result = await self._meting_template(template, song)
+            if result:
+                return result
+        return None
+
+    async def _meting_template(self, template: str, song: Song) -> dict | None:
         try:
             url = template.format(
                 id=song.song_id,
@@ -423,6 +485,7 @@ class NeteaseClient:
             logger.warning("meting_api 模板占位符不正确")
             return None
 
+        # 部分 Meting 实例直接返回音频流
         if await self._probe_audio(url):
             return {
                 "url": url,
@@ -479,6 +542,23 @@ class NeteaseClient:
             info = await self._song_url(song.song_id, level)
             if info:
                 return info
+
+        # v1 接口全部为空时，尝试老版 br 接口（部分 IP 上更宽松）
+        legacy_levels: list[str] = []
+        for level in (self.quality, "standard"):
+            if level in QUALITY_LEVELS and level not in legacy_levels:
+                legacy_levels.append(level)
+        for level in legacy_levels:
+            info = await self._song_url_legacy(song.song_id, level)
+            if info:
+                return info
+
+        logger.info(
+            "网易云直链获取失败：song=%s fee=%s cookie=%s",
+            song.song_id,
+            song.fee,
+            "yes" if self.cookie else "no",
+        )
 
         meting = await self._meting_url(song)
         if meting:
@@ -776,6 +856,8 @@ class NeteaseMusicPlugin(Star):
                 f"语音分片：{'开启' if self._voice_split() else '关闭'}"
                 f"（单段 {self._voice_max_seconds()} 秒）"
             ),
+            "公共 Meting 兜底："
+            + ("开启" if _cfg(self.config, "enable_public_meting", True) else "关闭"),
         ]
         if not cookie:
             lines.append(

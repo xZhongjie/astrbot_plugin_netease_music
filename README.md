@@ -121,12 +121,12 @@ Bot：🎵 小情歌 (苏打绿版)
 | `request_timeout` | `15` | 接口超时 |
 | `proxy` | 空 | 请求网易云时使用的 HTTP 代理 |
 | `meting_api` | 空 | 可选，额外解析接口兜底 |
+| `enable_public_meting` | `true` | 直连失败时尝试公共 Meting 实例（会向第三方发送歌曲 ID） |
 | `show_cover` | `false` | 链接模式是否附带封面 |
 
 ## 🎤 语音分片
 
 歌曲超过 `voice_max_seconds` 时：
-
 1. 下载音频并用 ffmpeg 切成多段 16k 单声道 wav；
 2. 依次发送「第 1/N 段」「第 2/N 段」……；
 3. 分片失败会先尝试整段语音，再失败才改发音频文件。
@@ -137,7 +137,7 @@ Bot：🎵 小情歌 (苏打绿版)
 
 **Q：还是提示拿不到播放地址？**
 
-A：先看 `/网易云状态` 是否显示 Cookie 已配置。VIP 歌曲必须用自己的 Cookie；Cookie 过期后重新复制即可。免费歌曲不填 Cookie 也能播放。
+A：先看 `/网易云状态` 是否显示 Cookie 已配置。VIP 歌曲必须用自己的 Cookie；Cookie 过期后重新复制即可。免费歌曲不填 Cookie 也能播放。v1.0.2 起，直连接口失败会依次尝试 `interface` 主机、老版 `br` 接口和公共 Meting 兜底；如果服务器 IP 被网易云风控，建议配置自己的 Meting 接口。
 
 **Q：音乐卡片点不开？**
 

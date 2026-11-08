@@ -95,6 +95,12 @@
     "default": "",
     "hint": "网易云取不到链接时的额外兜底，例如 https://your-meting/api?server=netease&type=url&id={id}。公共实例通常没有会员 Cookie，VIP 歌可能返回空。"
   },
+  "enable_public_meting": {
+    "description": "公共 Meting 兜底",
+    "type": "bool",
+    "default": true,
+    "hint": "直连接口全部失败时，尝试公共 Meting 实例。会向该第三方服务发送歌曲 ID；不想要可以关闭。"
+  },
   "show_cover": {
     "description": "链接模式附带封面",
     "type": "bool",
