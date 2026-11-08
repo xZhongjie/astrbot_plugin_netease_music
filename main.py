@@ -29,7 +29,7 @@ from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star
 
 PLUGIN_NAME = "astrbot_plugin_netease_music"
-PLUGIN_VERSION = "v1.0.3"
+PLUGIN_VERSION = "v1.0.4"
 API_BASE = "https://music.163.com"
 API_HOSTS = (
     API_BASE,
@@ -613,7 +613,10 @@ def _build_music_card(song: Song, audio: str, native: bool = False):
     object.__setattr__(card, "_type", "custom")
     object.__setattr__(card, "url", f"https://music.163.com/#/song?id={song.song_id}")
     object.__setattr__(card, "audio", audio)
-    object.__setattr__(card, "title", f"{song.title} - {song.singer}".strip(" -"))
+    object.__setattr__(
+        card, "title", f"网易云 · {song.title} - {song.singer}".strip(" -")
+    )
+    object.__setattr__(card, "content", "网易云音乐")
     object.__setattr__(card, "image", song.cover or "")
     return card
 
@@ -1218,3 +1221,4 @@ class NeteaseMusicPlugin(Star):
             return _parse_duration_text(stdout.decode("utf-8", "replace").strip())
         except (OSError, ValueError):
             return None
+
