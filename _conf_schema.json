@@ -1,0 +1,103 @@
+{
+  "cookie": {
+    "description": "网易云 Cookie",
+    "type": "string",
+    "default": "",
+    "secret": true,
+    "hint": "可选。填写后可以播放 VIP 歌曲。浏览器登录 music.163.com 后按 F12 → Application → Cookies，复制 MUSIC_U 的值（也可以直接粘贴 MUSIC_U=xxx 或完整 Cookie）。不填只能播放免费歌曲。"
+  },
+  "quality": {
+    "description": "音质",
+    "type": "string",
+    "default": "exhigh",
+    "options": ["standard", "higher", "exhigh", "lossless"],
+    "labels": ["标准 128k", "较高 192k", "极高 320k", "无损"],
+    "hint": "取不到指定音质时会自动降级。无损需要会员 Cookie。"
+  },
+  "card_type": {
+    "description": "音乐卡片类型",
+    "type": "string",
+    "default": "custom",
+    "options": ["custom", "native"],
+    "labels": ["自定义卡片（直接播放音频）", "网易云原生卡片"],
+    "hint": "自定义卡片把音频地址写进卡片，试听 / VIP 链接都能直接播放；原生卡片只带歌曲 id，交给 QQ 客户端处理。"
+  },
+  "send_mode": {
+    "description": "默认发送方式",
+    "type": "string",
+    "default": "auto",
+    "options": ["auto", "card", "link", "record", "file"],
+    "labels": ["自动", "音乐卡片", "播放链接", "语音", "音频文件"],
+    "hint": "自动：OneBot 平台发音乐卡片，其他平台发链接。也可以用 /语音点歌、/文件点歌，或在指令末尾加「语音 / 文件 / 卡片 / 链接」临时覆盖。"
+  },
+  "auto_play_single": {
+    "description": "唯一结果自动播放",
+    "type": "bool",
+    "default": true,
+    "hint": "搜索只命中一首时直接播放。"
+  },
+  "search_limit": {
+    "description": "搜索结果数量",
+    "type": "int",
+    "default": 5,
+    "slider": {
+      "min": 1,
+      "max": 10,
+      "step": 1
+    }
+  },
+  "voice_max_seconds": {
+    "description": "单段语音最长时长（秒）",
+    "type": "int",
+    "default": 60,
+    "slider": {
+      "min": 0,
+      "max": 600,
+      "step": 10
+    },
+    "hint": "超过该时长会自动切分成多段语音；填 0 表示不分片。"
+  },
+  "voice_split": {
+    "description": "语音自动分片",
+    "type": "bool",
+    "default": true,
+    "hint": "需要服务器安装 ffmpeg / ffprobe。关闭后超长歌曲会整段发语音，超出平台限制时会失败。"
+  },
+  "selection_ttl": {
+    "description": "候选有效期（秒）",
+    "type": "int",
+    "default": 120,
+    "slider": {
+      "min": 15,
+      "max": 600,
+      "step": 15
+    }
+  },
+  "request_timeout": {
+    "description": "接口超时（秒）",
+    "type": "int",
+    "default": 15,
+    "slider": {
+      "min": 5,
+      "max": 60,
+      "step": 1
+    }
+  },
+  "proxy": {
+    "description": "HTTP 代理",
+    "type": "string",
+    "default": "",
+    "hint": "可选，例如 http://127.0.0.1:7890。"
+  },
+  "meting_api": {
+    "description": "可选 Meting 解析接口",
+    "type": "string",
+    "default": "",
+    "hint": "网易云取不到链接时的额外兜底，例如 https://your-meting/api?server=netease&type=url&id={id}。公共实例通常没有会员 Cookie，VIP 歌可能返回空。"
+  },
+  "show_cover": {
+    "description": "链接模式附带封面",
+    "type": "bool",
+    "default": false
+  }
+}
