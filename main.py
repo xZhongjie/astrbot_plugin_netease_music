@@ -156,15 +156,16 @@ class Song:
 
     @classmethod
     def from_search(cls, data: dict) -> Song:
-        artists = data.get("artists") or []
-        album = data.get("album") or {}
-        alias = data.get("alias") or []
+        # search/get/web 用 artists/album/duration，cloudsearch 用 ar/al/dt
+        artists = data.get("artists") or data.get("ar") or []
+        album = data.get("album") or data.get("al") or {}
+        alias = data.get("alias") or data.get("alia") or []
         return cls(
             song_id=str(data.get("id") or ""),
             title=str(data.get("name") or "").strip(),
             singer="/".join(str(a.get("name") or "") for a in artists if a.get("name")),
             album=str(album.get("name") or "").strip(),
-            duration_ms=_as_int(data.get("duration"), 0),
+            duration_ms=_as_int(data.get("duration") or data.get("dt"), 0),
             fee=_as_int(data.get("fee"), 0),
             cover=str(album.get("picUrl") or album.get("blurPicUrl") or "").strip(),
             alias=" / ".join(str(a) for a in alias if a),
@@ -245,16 +246,25 @@ class NeteaseClient:
             await self._session.close()
         self._session = None
 
-    async def _request(self, path: str, params: dict) -> dict:
+    async def _request(self, path: str, params: dict, method: str = "GET") -> dict:
         url = f"{API_BASE}{path}"
         try:
             session = await self._get_session()
-            async with session.get(
-                url,
-                params=params,
-                headers=self._headers(),
-                proxy=self.proxy or None,
-            ) as response:
+            if method == "POST":
+                request = session.post(
+                    url,
+                    data=params,
+                    headers=self._headers(),
+                    proxy=self.proxy or None,
+                )
+            else:
+                request = session.get(
+                    url,
+                    params=params,
+                    headers=self._headers(),
+                    proxy=self.proxy or None,
+                )
+            async with request as response:
                 text = await response.text()
                 if response.status != 200:
                     raise NeteaseError(f"网易云接口返回 HTTP {response.status}")
@@ -274,23 +284,45 @@ class NeteaseClient:
             raise NeteaseError(f"无法连接网易云：{exc}") from exc
 
     async def search(self, keyword: str, limit: int) -> list[Song]:
-        data = await self._request(
-            "/api/search/get/web",
-            {
-                "s": keyword,
-                "type": 1,
-                "offset": 0,
-                "limit": limit,
-                "total": "true",
-            },
-        )
-        result = data.get("result") or {}
-        songs = result.get("songs") or []
-        return [
-            Song.from_search(item)
-            for item in songs
-            if isinstance(item, dict) and item.get("id")
-        ]
+        params = {
+            "s": keyword,
+            "type": 1,
+            "offset": 0,
+            "limit": limit,
+            "total": "true",
+        }
+        errors: list[str] = []
+        for path, method in (
+            ("/api/cloudsearch/pc", "POST"),
+            ("/api/search/get/web", "GET"),
+        ):
+            try:
+                data = await self._request(path, params, method)
+            except NeteaseError as exc:
+                errors.append(str(exc))
+                continue
+
+            result = data.get("result")
+            if isinstance(result, str):
+                try:
+                    result = json.loads(result)
+                except ValueError:
+                    result = None
+            if not isinstance(result, dict):
+                errors.append("搜索接口返回异常")
+                continue
+
+            songs = result.get("songs")
+            if not isinstance(songs, list):
+                errors.append("搜索接口没有返回歌曲列表")
+                continue
+            return [
+                Song.from_search(item)
+                for item in songs
+                if isinstance(item, dict) and item.get("id")
+            ]
+
+        raise NeteaseError(errors[-1] if errors else "网易云搜索失败")
 
     async def detail(self, song: Song) -> Song:
         """补全专辑、封面、时长等信息。"""
@@ -299,7 +331,7 @@ class NeteaseClient:
         except NeteaseError:
             return song
         songs = data.get("songs") or []
-        if not songs:
+        if not isinstance(songs, list) or not songs:
             return song
         item = songs[0]
         album = item.get("album") or {}
@@ -329,7 +361,7 @@ class NeteaseClient:
             },
         )
         items = data.get("data") or []
-        if not items or not isinstance(items[0], dict):
+        if not isinstance(items, list) or not items or not isinstance(items[0], dict):
             return None
         item = items[0]
         url = str(item.get("url") or "").strip()
