@@ -2,7 +2,7 @@ name: astrbot_plugin_netease_music
 display_name: 网易云点歌
 desc: 直接对接网易云音乐 Web API 的点歌插件。支持搜索选歌、Cookie 播放 VIP 歌曲、音乐卡片、语音分片、音频文件，且不会触发 AI 回复。
 short_desc: 直接对接网易云的点歌插件，支持 Cookie / 语音分片
-version: v1.0.2
+version: v1.0.3
 author: xZhongjie
 repo: https://github.com/xZhongjie/astrbot_plugin_netease_music
 astrbot_version: ">=4.10.4"
@@ -11,3 +11,4 @@ support_platforms:
   - telegram
   - discord
   - kook
+

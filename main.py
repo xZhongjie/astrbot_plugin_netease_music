@@ -29,7 +29,7 @@ from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star
 
 PLUGIN_NAME = "astrbot_plugin_netease_music"
-PLUGIN_VERSION = "v1.0.2"
+PLUGIN_VERSION = "v1.0.3"
 API_BASE = "https://music.163.com"
 API_HOSTS = (
     API_BASE,
@@ -38,7 +38,11 @@ API_HOSTS = (
 )
 
 # 公共 Meting 兜底（可用配置关闭）；仅在直链接口全部失败时尝试
-PUBLIC_METING_API = "https://meting.jinghuashang.cn/api?server=netease&type=url&id={id}"
+PUBLIC_METING_APIS = (
+    "https://api.injahow.cn/meting/?type=url&id={id}",
+    "https://api.qijieya.cn/meting/?type=url&id={id}",
+    "https://meting.jinghuashang.cn/api?server=netease&type=url&id={id}",
+)
 
 QUALITY_LEVELS = {
     "standard": ("standard", "mp3", "128k"),
@@ -462,7 +466,7 @@ class NeteaseClient:
         if configured:
             templates.append(configured)
         if _cfg(self.config, "enable_public_meting", True):
-            templates.append(PUBLIC_METING_API)
+            templates.extend(PUBLIC_METING_APIS)
 
         seen: set[str] = set()
         for template in templates:
